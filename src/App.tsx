@@ -10,6 +10,7 @@ import Timeline from "./pages/Timeline";
 import Alerts from "./pages/Alerts";
 import Analytics from "./pages/Analytics";
 import Profile from "./pages/Profile";
+import VehicleReport from "./pages/VehicleReport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
