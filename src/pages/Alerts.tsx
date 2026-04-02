@@ -27,7 +27,7 @@ const Alerts = () => {
               <MessageCircle className="w-5 h-5 text-success-foreground" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">ManuCar</p>
+              <p className="text-sm font-semibold text-foreground">SeuCarro</p>
               <p className="text-xs text-muted-foreground">via WhatsApp</p>
             </div>
           </div>
