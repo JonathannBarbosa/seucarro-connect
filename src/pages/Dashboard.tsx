@@ -1,4 +1,4 @@
-import { Bell, Car, Droplets, Plus, TrendingUp } from "lucide-react";
+import { Bell, Car, Droplets, FileText, Plus, TrendingUp } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
 const Dashboard = () => {
@@ -91,6 +91,21 @@ const Dashboard = () => {
             <span className="text-sm font-medium text-foreground">Alertas</span>
           </button>
         </div>
+
+        {/* Vehicle Report CTA */}
+        <button
+          onClick={() => window.location.href = '/report'}
+          className="w-full mt-3 bg-accent/10 border border-accent/20 rounded-2xl p-4 flex items-center gap-3 active:scale-[0.97] transition-transform animate-fade-in-up"
+          style={{ animationDelay: '0.25s' }}
+        >
+          <div className="w-10 h-10 bg-accent/20 rounded-xl flex items-center justify-center">
+            <FileText className="w-5 h-5 text-accent" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-semibold text-foreground">Relatório para Venda</p>
+            <p className="text-xs text-muted-foreground">Exporte o histórico verificado do seu veículo</p>
+          </div>
+        </button>
       </div>
     </AppShell>
   );
