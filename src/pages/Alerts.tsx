@@ -27,7 +27,7 @@ const Alerts = () => {
               <MessageCircle className="w-5 h-5 text-success-foreground" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">ManuCar</p>
+              <p className="text-sm font-semibold text-foreground">SeuCarro</p>
               <p className="text-xs text-muted-foreground">via WhatsApp</p>
             </div>
           </div>
@@ -35,7 +35,7 @@ const Alerts = () => {
           {/* Chat bubble */}
           <div className="bg-success/10 rounded-2xl rounded-tl-md p-4 ml-2">
             <p className="text-sm text-foreground leading-relaxed">
-              🚗 <strong>ManuCar</strong>: Está na hora de trocar o óleo do seu Honda Civic! Última troca há 8.000 km. Agende já e evite problemas.
+              🚗 <strong>SeuCarro</strong>: Está na hora de trocar o óleo do seu Honda Civic! Última troca há 8.000 km. Agende já e evite problemas.
             </p>
             <p className="text-[10px] text-muted-foreground text-right mt-2">10:30</p>
           </div>
