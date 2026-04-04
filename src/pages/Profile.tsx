@@ -37,7 +37,10 @@ const Profile = () => {
                 <p className="text-xs text-primary-foreground/70">1 veículo · Recursos básicos</p>
               </div>
             </div>
-            <button className="bg-primary-foreground/20 text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl active:scale-95 transition-transform">
+            <button
+              onClick={() => navigate("/plans")}
+              className="bg-primary-foreground/20 text-primary-foreground text-xs font-semibold px-4 py-2 rounded-xl active:scale-95 transition-transform"
+            >
               Upgrade
             </button>
           </div>
