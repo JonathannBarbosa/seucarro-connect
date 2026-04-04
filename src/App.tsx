@@ -11,6 +11,7 @@ import Alerts from "./pages/Alerts";
 import Analytics from "./pages/Analytics";
 import Profile from "./pages/Profile";
 import VehicleReport from "./pages/VehicleReport";
+import Plans from "./pages/Plans";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/report" element={<VehicleReport />} />
+          <Route path="/plans" element={<Plans />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
