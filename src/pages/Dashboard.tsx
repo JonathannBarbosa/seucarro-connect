@@ -1,4 +1,4 @@
-import { Bell, Car, Droplets, FileText, Plus, TrendingUp } from "lucide-react";
+import { Bell, Car, Droplets, FileText, Fuel, TrendingUp, Wrench } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
 const Dashboard = () => {
