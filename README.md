@@ -9,14 +9,13 @@ App de gestão inteligente de manutenção veicular. Gerencie manutenções, rec
 - Tailwind CSS + shadcn/ui
 - React Router DOM
 - TanStack React Query
-- React Hook Form + Zod
 
 ## Desenvolvimento
 
 ```bash
 npm install
 npm run dev       # http://localhost:8080
-npm run build     # Build de producao
+npm run build     # Build de produção
 npm run lint      # ESLint
-npm run test      # Testes unitarios
+npm run test      # Testes unitários
 ```
