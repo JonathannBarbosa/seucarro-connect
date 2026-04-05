@@ -1,4 +1,4 @@
-import { Bell, Car, Droplets, FileText, Plus, TrendingUp } from "lucide-react";
+import { Bell, Car, Droplets, FileText, Fuel, TrendingUp, Wrench } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
 const Dashboard = () => {
@@ -58,6 +58,28 @@ const Dashboard = () => {
           <p className="text-2xl font-bold text-foreground">R$ 450,00</p>
           <p className="text-xs text-success font-medium mt-1">↓ 12% vs. mês anterior</p>
 
+          {/* Spending breakdown */}
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="bg-secondary rounded-xl p-3 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Wrench className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Manutenção</p>
+                <p className="text-sm font-bold text-foreground">R$ 280</p>
+              </div>
+            </div>
+            <div className="bg-secondary rounded-xl p-3 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-warning/15 flex items-center justify-center">
+                <Fuel className="w-4 h-4 text-warning" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Combustível</p>
+                <p className="text-sm font-bold text-foreground">R$ 170</p>
+              </div>
+            </div>
+          </div>
+
           {/* Mini bar chart */}
           <div className="flex items-end gap-1.5 mt-4 h-12">
             {[40, 65, 30, 80, 55, 70, 45].map((h, i) => (
@@ -75,17 +97,10 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <button
-            onClick={() => window.location.href = '/add'}
-            className="bg-primary text-primary-foreground rounded-2xl p-4 flex items-center gap-3 card-shadow-lg active:scale-[0.97] transition-transform"
-          >
-            <Plus className="w-5 h-5" />
-            <span className="text-sm font-semibold">Adicionar manutenção</span>
-          </button>
+        <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           <button
             onClick={() => window.location.href = '/alerts'}
-            className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 card-shadow active:scale-[0.97] transition-transform"
+            className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-3 card-shadow active:scale-[0.97] transition-transform"
           >
             <Bell className="w-5 h-5 text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">Alertas</span>
