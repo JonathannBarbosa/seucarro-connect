@@ -22,5 +22,10 @@ npm-debug.log*
 .DS_Store
 *.sw?
 
+# Claude
+.claude/
+
 # TypeScript
 next-env.d.ts
+
+.vercel
