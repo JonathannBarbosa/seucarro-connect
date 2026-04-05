@@ -21,8 +21,6 @@ const AddMaintenance = () => {
   const [km, setKm] = useState("");
   const [notes, setNotes] = useState("");
 
-  const today = new Date().toISOString().split("T")[0];
-
   const handleConfirmManual = () => {
     // TODO: save to backend
     navigate("/timeline");
