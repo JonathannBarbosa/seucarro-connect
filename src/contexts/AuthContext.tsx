@@ -36,15 +36,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signUp(email: string, password: string, fullName: string) {
-    const { error } = await supabase.auth.signUp({
+    const formattedName = fullName
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: formattedName },
       },
     });
 
     if (error) return { error: traduzirErro(error.message) };
+
+    if (data.user) {
+      await supabase.from("profiles").insert({
+        id: data.user.id,
+        full_name: formattedName,
+      });
+    }
+
     return { error: null };
   }
 
