@@ -75,17 +75,10 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <button
-            onClick={() => window.location.href = '/add'}
-            className="bg-primary text-primary-foreground rounded-2xl p-4 flex items-center gap-3 card-shadow-lg active:scale-[0.97] transition-transform"
-          >
-            <Plus className="w-5 h-5" />
-            <span className="text-sm font-semibold">Adicionar manutenção</span>
-          </button>
+        <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           <button
             onClick={() => window.location.href = '/alerts'}
-            className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 card-shadow active:scale-[0.97] transition-transform"
+            className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-3 card-shadow active:scale-[0.97] transition-transform"
           >
             <Bell className="w-5 h-5 text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">Alertas</span>
