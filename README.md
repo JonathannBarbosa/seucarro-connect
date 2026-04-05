@@ -1,6 +1,6 @@
 # SeuCarro Connect
 
-App de gestao inteligente de manutencao veicular. Gerencie manutencoes, receba alertas e nunca mais esqueca revisoes.
+App de gestão inteligente de manutenção veicular. Gerencie manutenções, receba alertas e nunca mais esqueça revisões.
 
 ## Stack
 
