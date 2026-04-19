@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .toLowerCase()
       .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -49,14 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) return { error: traduzirErro(error.message) };
-
-    if (data.user) {
-      await supabase.from("profiles").insert({
-        id: data.user.id,
-        full_name: formattedName,
-      });
-    }
-
     return { error: null };
   }
 
