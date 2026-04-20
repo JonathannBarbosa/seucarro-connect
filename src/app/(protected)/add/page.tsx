@@ -1,138 +1,424 @@
 "use client";
 
-import { useState } from "react";
-import { Camera, PenLine, ArrowLeft, Check, Wrench, Calendar, Gauge, DollarSign, Package, Droplets, Disc, Wind, Zap, CircleDot, Settings } from "lucide-react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  ArrowLeft, Battery, Calendar, Camera, Check, CircleDot, Disc, DollarSign,
+  Droplets, Gauge, LifeBuoy, Loader2, PenLine, Settings, SlidersHorizontal,
+  Sparkles, Wind, Wrench,
+} from "lucide-react";
+import { toast } from "sonner";
+import { z } from "zod";
 import AppShell from "@/components/AppShell";
 import { Input } from "@/components/ui/input";
+import { useVehicles, usePrimaryVehicle } from "@/hooks/useVehicles";
+import { useCreateMaintenance } from "@/hooks/useMaintenances";
+import { useScanOS, type ScanOSResult } from "@/hooks/useScanOS";
+import { todayIso } from "@/lib/format";
+import { SERVICE_TYPE_LABELS, type ServiceType } from "@/types/database";
 
-const quickServices = [
-  { icon: Droplets, label: "Troca de óleo", color: "text-amber-500" },
-  { icon: Disc, label: "Freios", color: "text-red-500" },
-  { icon: CircleDot, label: "Pneus", color: "text-foreground" },
-  { icon: Wind, label: "Filtro de ar", color: "text-sky-500" },
-  { icon: Zap, label: "Bateria", color: "text-yellow-500" },
-  { icon: Settings, label: "Revisão geral", color: "text-primary" },
+type Step = "choose" | "manual" | "camera" | "uploading";
+
+const quickServices: { id: ServiceType; icon: typeof Droplets; color: string }[] = [
+  { id: "troca_oleo", icon: Droplets, color: "text-amber-500" },
+  { id: "freios", icon: Disc, color: "text-red-500" },
+  { id: "pneus", icon: CircleDot, color: "text-foreground" },
+  { id: "filtros", icon: Wind, color: "text-sky-500" },
+  { id: "bateria", icon: Battery, color: "text-yellow-500" },
+  { id: "revisao", icon: Settings, color: "text-primary" },
+  { id: "suspensao", icon: LifeBuoy, color: "text-indigo-500" },
+  { id: "alinhamento", icon: SlidersHorizontal, color: "text-fuchsia-500" },
+  { id: "outro", icon: Wrench, color: "text-muted-foreground" },
 ];
+
+const manualSchema = z.object({
+  service_type: z.enum([
+    "troca_oleo", "freios", "pneus", "filtros", "bateria",
+    "suspensao", "alinhamento", "revisao", "outro",
+  ]),
+  cost: z.number({ error: "Informe o valor" }).min(0, "Valor inválido"),
+  mileage: z.number().int().min(0).optional(),
+  description: z.string().optional(),
+  service_date: z.string().min(1, "Informe a data"),
+});
 
 export default function AddMaintenancePage() {
   const router = useRouter();
-  const [step, setStep] = useState<"choose" | "manual" | "preview">("choose");
-  const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [value, setValue] = useState("");
-  const [km, setKm] = useState("");
-  const [notes, setNotes] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleConfirmManual = () => {
-    router.push("/timeline");
-  };
+  const { data: vehicles } = useVehicles();
+  const { data: primary } = usePrimaryVehicle();
+  const createMaintenance = useCreateMaintenance();
+  const scanOS = useScanOS();
+
+  const [step, setStep] = useState<Step>("choose");
+  const [vehicleId, setVehicleId] = useState<string>("");
+  const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
+  const [cost, setCost] = useState("");
+  const [mileage, setMileage] = useState("");
+  const [notes, setNotes] = useState("");
+  const [serviceDate, setServiceDate] = useState(todayIso());
+  const [workshop, setWorkshop] = useState("");
+  const [osImageUrl, setOsImageUrl] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<ScanOSResult | null>(null);
+  const [error, setError] = useState("");
+
+  const activeVehicleId = vehicleId || primary?.id || "";
+  const hasMultipleVehicles = (vehicles?.length ?? 0) > 1;
+  const fromOCR = !!scanResult;
+
+  function resetForm() {
+    setSelectedService(null);
+    setCost("");
+    setMileage("");
+    setNotes("");
+    setServiceDate(todayIso());
+    setWorkshop("");
+    setOsImageUrl(null);
+    setScanResult(null);
+  }
+
+  function goBack() {
+    if (step !== "choose") {
+      setStep("choose");
+      resetForm();
+      setError("");
+    } else {
+      router.back();
+    }
+  }
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    processFile(file);
+  }
+
+  async function processFile(file: File) {
+    setError("");
+    setStep("uploading");
+
+    try {
+      const result = await scanOS.mutateAsync(file);
+      setScanResult(result);
+      setSelectedService(result.service_type);
+      setCost(result.cost != null ? String(result.cost).replace(".", ",") : "");
+      setMileage(result.mileage != null ? String(result.mileage) : "");
+      setServiceDate(result.service_date ?? todayIso());
+      setWorkshop(result.workshop ?? "");
+      setNotes(result.description ?? "");
+      setOsImageUrl(result.os_image_url);
+      setStep("manual");
+      toast.success("Dados extraídos! Revise antes de salvar.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao processar imagem";
+      toast.error(message);
+      setStep("choose");
+    }
+  }
+
+  async function handleSubmit() {
+    setError("");
+
+    if (!activeVehicleId) {
+      setError("Cadastre um veículo antes de registrar manutenções");
+      return;
+    }
+
+    const parsed = manualSchema.safeParse({
+      service_type: selectedService,
+      cost: cost ? Number(cost.replace(",", ".")) : undefined,
+      mileage: mileage ? Number(mileage) : undefined,
+      description: notes || undefined,
+      service_date: serviceDate,
+    });
+
+    if (!parsed.success) {
+      setError(parsed.error.issues[0].message);
+      return;
+    }
+
+    try {
+      await createMaintenance.mutateAsync({
+        vehicle_id: activeVehicleId,
+        service_type: parsed.data.service_type,
+        cost: parsed.data.cost,
+        mileage: parsed.data.mileage ?? null,
+        description: parsed.data.description ?? null,
+        service_date: parsed.data.service_date,
+        workshop: workshop || null,
+        os_image_url: osImageUrl,
+        parts: scanResult?.parts ?? [],
+        source: fromOCR ? "ocr" : "manual",
+      });
+
+      toast.success("Manutenção registrada!");
+      router.push("/timeline");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar manutenção");
+    }
+  }
 
   return (
     <AppShell>
-      <div className="px-5 pt-14 pb-8 animate-fade-in">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        onChange={handleFileSelected}
+        className="hidden"
+      />
+
+      <div className="px-5 pt-14 pb-24 animate-fade-in">
         <div className="flex items-center gap-3 mb-6">
           <button
-            onClick={() => { if (step !== "choose") setStep("choose"); else router.back(); }}
+            onClick={goBack}
             className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center card-shadow active:scale-95 transition-transform"
           >
             <ArrowLeft className="w-4.5 h-4.5 text-foreground" />
           </button>
           <h1 className="text-xl font-bold text-foreground tracking-tight">
-            {step === "choose" ? "Nova Manutenção" : step === "manual" ? "Registro Rápido" : "Confirmar Dados"}
+            {step === "choose"
+              ? "Nova Manutenção"
+              : step === "manual"
+              ? fromOCR ? "Confirmar dados" : "Registro Rápido"
+              : step === "camera"
+              ? "Foto da Nota"
+              : "Processando..."}
           </h1>
         </div>
 
-        {step === "choose" ? (
+        {!primary && (
+          <div className="bg-warning/10 border border-warning/20 rounded-2xl p-4 mb-4 animate-fade-in-up">
+            <p className="text-sm font-semibold text-foreground">Você ainda não tem veículos</p>
+            <p className="text-xs text-muted-foreground mb-3">Cadastre um veículo para começar a registrar manutenções.</p>
+            <button onClick={() => router.push("/vehicles/new")} className="text-sm font-semibold text-primary">
+              Cadastrar veículo →
+            </button>
+          </div>
+        )}
+
+        {step === "choose" && (
           <div className="space-y-4 animate-fade-in-up">
             <p className="text-sm text-muted-foreground mb-6">Como você quer registrar?</p>
-            <button onClick={() => setStep("preview")} className="w-full bg-card rounded-2xl p-6 card-shadow flex items-center gap-4 active:scale-[0.98] transition-transform border border-border">
-              <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center"><Camera className="w-7 h-7 text-primary" /></div>
-              <div className="text-left">
-                <h3 className="font-semibold text-foreground">📸 Tirar foto da nota</h3>
-                <p className="text-sm text-muted-foreground mt-0.5">Nossa IA extrai os dados automaticamente</p>
+
+            <button
+              onClick={() => {
+                setStep("camera");
+                fileInputRef.current?.click();
+              }}
+              disabled={!primary}
+              className="w-full bg-card rounded-2xl p-6 card-shadow flex items-center gap-4 active:scale-[0.98] transition-transform border border-border disabled:opacity-50"
+            >
+              <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <Camera className="w-7 h-7 text-primary" />
+              </div>
+              <div className="text-left flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-foreground">Foto da nota</h3>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    <Sparkles className="w-3 h-3" />
+                    IA
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Nossa IA extrai os dados automaticamente
+                </p>
               </div>
             </button>
-            <button onClick={() => setStep("manual")} className="w-full bg-card rounded-2xl p-6 card-shadow flex items-center gap-4 active:scale-[0.98] transition-transform border border-border">
-              <div className="w-14 h-14 bg-secondary rounded-2xl flex items-center justify-center"><PenLine className="w-7 h-7 text-muted-foreground" /></div>
+
+            <button
+              onClick={() => setStep("manual")}
+              disabled={!primary}
+              className="w-full bg-card rounded-2xl p-6 card-shadow flex items-center gap-4 active:scale-[0.98] transition-transform border border-border disabled:opacity-50"
+            >
+              <div className="w-14 h-14 bg-secondary rounded-2xl flex items-center justify-center">
+                <PenLine className="w-7 h-7 text-muted-foreground" />
+              </div>
               <div className="text-left">
-                <h3 className="font-semibold text-foreground">⚡ Registro rápido</h3>
-                <p className="text-sm text-muted-foreground mt-0.5">Selecione o serviço e pronto — menos de 30s</p>
+                <h3 className="font-semibold text-foreground">Registro rápido</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Selecione o serviço e pronto — menos de 30s
+                </p>
               </div>
             </button>
           </div>
-        ) : step === "manual" ? (
+        )}
+
+        {step === "camera" && (
+          <div className="animate-fade-in-up text-center py-12">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex flex-col items-center gap-4"
+            >
+              <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center">
+                <Camera className="w-12 h-12 text-primary" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Toque para tirar uma foto</p>
+              <p className="text-xs text-muted-foreground">ou selecionar da galeria</p>
+            </button>
+          </div>
+        )}
+
+        {step === "uploading" && (
+          <div className="animate-fade-in-up text-center py-16">
+            <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+            <p className="text-sm font-semibold text-foreground mb-1">
+              Lendo sua nota...
+            </p>
+            <p className="text-xs text-muted-foreground max-w-[260px] mx-auto">
+              A IA está extraindo os dados. Isso leva alguns segundos.
+            </p>
+          </div>
+        )}
+
+        {step === "manual" && (
           <div className="animate-fade-in-up space-y-6">
+            {fromOCR && (
+              <div className="bg-success/10 border border-success/20 rounded-2xl p-4 flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">Dados extraídos pela IA</p>
+                  <p className="text-xs text-muted-foreground">
+                    Revise abaixo antes de confirmar. Você pode editar qualquer campo.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {hasMultipleVehicles && vehicles && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Veículo</p>
+                <select
+                  value={activeVehicleId}
+                  onChange={(e) => setVehicleId(e.target.value)}
+                  className="w-full h-12 px-3 rounded-xl border border-border bg-card text-foreground"
+                >
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>{v.brand} {v.model} {v.year}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">O que foi feito?</p>
               <div className="grid grid-cols-3 gap-2.5">
                 {quickServices.map((svc) => {
-                  const isSelected = selectedService === svc.label;
+                  const isSelected = selectedService === svc.id;
+                  const Icon = svc.icon;
                   return (
-                    <button key={svc.label} onClick={() => setSelectedService(isSelected ? null : svc.label)} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all active:scale-95 ${isSelected ? "bg-primary/10 border-primary ring-1 ring-primary/30" : "bg-card border-border"}`}>
-                      <svc.icon className={`w-6 h-6 ${isSelected ? "text-primary" : svc.color}`} />
-                      <span className={`text-xs font-medium text-center leading-tight ${isSelected ? "text-primary" : "text-foreground"}`}>{svc.label}</span>
+                    <button
+                      key={svc.id}
+                      onClick={() => setSelectedService(isSelected ? null : svc.id)}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all active:scale-95 ${
+                        isSelected
+                          ? "bg-primary/10 border-primary ring-1 ring-primary/30"
+                          : "bg-card border-border"
+                      }`}
+                    >
+                      <Icon className={`w-6 h-6 ${isSelected ? "text-primary" : svc.color}`} />
+                      <span className={`text-xs font-medium text-center leading-tight ${
+                        isSelected ? "text-primary" : "text-foreground"
+                      }`}>
+                        {SERVICE_TYPE_LABELS[svc.id]}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Valor (R$)</p>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input type="number" inputMode="decimal" placeholder="280,00" value={value} onChange={(e) => setValue(e.target.value)} className="pl-9 h-12 rounded-xl border-border bg-card text-foreground" />
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="280,00"
+                    value={cost}
+                    onChange={(e) => setCost(e.target.value.replace(/[^\d,.]/g, ""))}
+                    className="pl-9 h-12 rounded-xl border-border bg-card text-foreground"
+                  />
                 </div>
               </div>
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">KM atual</p>
                 <div className="relative">
                   <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input type="number" inputMode="numeric" placeholder="45.230" value={km} onChange={(e) => setKm(e.target.value)} className="pl-9 h-12 rounded-xl border-border bg-card text-foreground" />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="45230"
+                    value={mileage}
+                    onChange={(e) => setMileage(e.target.value.replace(/\D/g, ""))}
+                    className="pl-9 h-12 rounded-xl border-border bg-card text-foreground"
+                  />
                 </div>
               </div>
             </div>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Oficina (opcional)</p>
+              <Input
+                placeholder="Nome da oficina"
+                value={workshop}
+                onChange={(e) => setWorkshop(e.target.value)}
+                className="h-12 rounded-xl border-border bg-card text-foreground"
+              />
+            </div>
+
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Observação (opcional)</p>
-              <Input placeholder="Ex: Próxima troca em 10.000 km" value={notes} onChange={(e) => setNotes(e.target.value)} className="h-12 rounded-xl border-border bg-card text-foreground" />
+              <Input
+                placeholder="Ex: Óleo Mobil 5W30, filtro Mann"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="h-12 rounded-xl border-border bg-card text-foreground"
+              />
             </div>
+
             <div className="bg-card rounded-xl p-3.5 border border-border flex items-center gap-3">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground">Data</p>
-                <p className="text-sm font-medium text-foreground">Hoje — {new Date().toLocaleDateString("pt-BR")}</p>
+                <input
+                  type="date"
+                  value={serviceDate}
+                  onChange={(e) => setServiceDate(e.target.value)}
+                  className="text-sm font-medium text-foreground bg-transparent outline-none w-full"
+                  max={todayIso()}
+                />
               </div>
-              <span className="text-xs text-primary font-medium">Alterar</span>
             </div>
-            <button onClick={handleConfirmManual} disabled={!selectedService} className={`w-full font-semibold py-4 rounded-2xl text-base flex items-center justify-center gap-2 card-shadow-lg active:scale-[0.98] transition-all ${selectedService ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
-              <Check className="w-5 h-5" />Salvar manutenção
-            </button>
-          </div>
-        ) : (
-          <div className="animate-fade-in-up">
-            <div className="bg-success/5 border border-success/20 rounded-2xl p-4 mb-6 flex items-center gap-3">
-              <div className="w-8 h-8 bg-success/20 rounded-lg flex items-center justify-center"><Check className="w-4 h-4 text-success" /></div>
-              <p className="text-sm text-foreground font-medium">Dados extraídos com sucesso via IA</p>
-            </div>
-            <div className="space-y-3">
-              {[
-                { icon: Wrench, label: "Serviço", value: "Troca de óleo + filtro" },
-                { icon: Package, label: "Peças", value: "Óleo Mobil 5W30, Filtro Mann" },
-                { icon: DollarSign, label: "Valor", value: "R$ 280,00" },
-                { icon: Gauge, label: "Quilometragem", value: "45.230 km" },
-                { icon: Calendar, label: "Data", value: "28/03/2026" },
-              ].map((field) => (
-                <div key={field.label} className="bg-card rounded-xl p-4 border border-border flex items-center gap-3">
-                  <field.icon className="w-4.5 h-4.5 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">{field.label}</p>
-                    <p className="text-sm font-medium text-foreground">{field.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => router.push("/timeline")} className="w-full mt-8 bg-primary text-primary-foreground font-semibold py-4 rounded-2xl text-base flex items-center justify-center gap-2 card-shadow-lg active:scale-[0.98] transition-transform">
-              <Check className="w-5 h-5" />Confirmar
+
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded-xl px-4 py-3 animate-fade-in">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleSubmit}
+              disabled={!selectedService || !cost || createMaintenance.isPending || !primary}
+              className={`w-full font-semibold py-4 rounded-2xl text-base flex items-center justify-center gap-2 card-shadow-lg active:scale-[0.98] transition-all ${
+                selectedService && cost && primary
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground cursor-not-allowed"
+              }`}
+            >
+              {createMaintenance.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Check className="w-5 h-5" />
+                  {fromOCR ? "Confirmar e salvar" : "Salvar manutenção"}
+                </>
+              )}
             </button>
           </div>
         )}

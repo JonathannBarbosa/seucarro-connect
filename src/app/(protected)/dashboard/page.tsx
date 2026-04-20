@@ -1,24 +1,41 @@
 "use client";
 
-import { Bell, Car, Droplets, FileText, Fuel, Plus, TrendingUp, Wrench } from "lucide-react";
+import { AlertTriangle, Bell, Car, CheckCircle2, FileText, Plus, TrendingDown, TrendingUp, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useProfile, getFirstName } from "@/hooks/useProfile";
 import { usePrimaryVehicle } from "@/hooks/useVehicles";
+import { useAlerts } from "@/hooks/useAlerts";
+import { useMonthlyExpenses } from "@/hooks/useExpenses";
+import { formatCurrency, formatNumber } from "@/lib/format";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: vehicle, isLoading: vehicleLoading } = usePrimaryVehicle();
+  const { data: alerts } = useAlerts();
+  const { data: monthly } = useMonthlyExpenses({ vehicleId: vehicle?.id, months: 7 });
 
   const firstName = getFirstName(profile?.full_name);
-  const formattedMileage = vehicle
-    ? new Intl.NumberFormat("pt-BR").format(vehicle.current_mileage)
-    : "";
+  const formattedMileage = vehicle ? formatNumber(vehicle.current_mileage) : "";
+
+  const currentMonth = monthly[monthly.length - 1];
+  const previousMonth = monthly[monthly.length - 2];
+  const currentTotal = currentMonth?.total ?? 0;
+  const previousTotal = previousMonth?.total ?? 0;
+  const deltaPct =
+    previousTotal > 0
+      ? Math.round(((currentTotal - previousTotal) / previousTotal) * 100)
+      : null;
+
+  const topAlert = alerts?.[0];
+  const alertsCount = alerts?.length ?? 0;
+
+  const maxMonth = Math.max(...monthly.map((m) => m.total), 1);
 
   return (
     <AppShell>
-      <div className="px-5 pt-14 animate-fade-in">
+      <div className="px-5 pt-14 pb-24 animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-sm text-muted-foreground">
@@ -26,8 +43,16 @@ export default function DashboardPage() {
             </p>
             <h1 className="text-xl font-bold text-foreground tracking-tight">Meu Veículo</h1>
           </div>
-          <button className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center card-shadow active:scale-95 transition-transform">
+          <button
+            onClick={() => router.push("/alerts")}
+            className="relative w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center card-shadow active:scale-95 transition-transform"
+          >
             <Bell className="w-4.5 h-4.5 text-muted-foreground" />
+            {alertsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                {alertsCount > 9 ? "9+" : alertsCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -57,10 +82,17 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <span className="inline-flex items-center gap-1.5 bg-success/10 text-success px-3 py-1 rounded-full text-xs font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse-soft" />
-                Em dia
-              </span>
+              {alertsCount === 0 ? (
+                <span className="inline-flex items-center gap-1.5 bg-success/10 text-success px-3 py-1 rounded-full text-xs font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse-soft" />
+                  Em dia
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 bg-warning/10 text-warning px-3 py-1 rounded-full text-xs font-semibold">
+                  <AlertTriangle className="w-3 h-3" />
+                  {alertsCount} alerta{alertsCount > 1 ? "s" : ""}
+                </span>
+              )}
             </div>
           </div>
         ) : (
@@ -82,26 +114,63 @@ export default function DashboardPage() {
 
         {vehicle && (
           <>
-            <div className="bg-warning/10 border border-warning/20 rounded-2xl p-4 mb-4 animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-warning/20 rounded-xl flex items-center justify-center">
-                  <Droplets className="w-5 h-5 text-warning" />
+            {topAlert ? (
+              <button
+                onClick={() => router.push("/alerts")}
+                className="w-full bg-warning/10 border border-warning/20 rounded-2xl p-4 mb-4 animate-fade-in-up active:scale-[0.98] transition-transform"
+                style={{ animationDelay: "0.1s" }}
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div className="w-10 h-10 bg-warning/20 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-warning" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{topAlert.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {topAlert.due_mileage != null && `Aos ${formatNumber(topAlert.due_mileage)} km`}
+                      {topAlert.description ? ` · ${topAlert.description}` : ""}
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-warning bg-warning/20 px-2.5 py-1 rounded-full flex-shrink-0">
+                    {topAlert.priority === "high" ? "Urgente" : "Atenção"}
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-foreground">Troca de óleo</p>
-                  <p className="text-xs text-muted-foreground">Em 1.200 km ou 15 dias</p>
+              </button>
+            ) : (
+              <div className="bg-success/10 border border-success/20 rounded-2xl p-4 mb-4 animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-success/20 rounded-xl flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-success" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">Tudo em dia</p>
+                    <p className="text-xs text-muted-foreground">Nenhum alerta pendente</p>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-warning bg-warning/20 px-2.5 py-1 rounded-full">Atenção</span>
               </div>
-            </div>
+            )}
 
             <div className="bg-card rounded-2xl p-5 card-shadow mb-4 animate-fade-in-up" style={{ animationDelay: "0.15s" }}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-medium text-muted-foreground">Gastos este mês</p>
-                <TrendingUp className="w-4 h-4 text-success" />
+                {deltaPct != null && (
+                  deltaPct < 0 ? (
+                    <TrendingDown className="w-4 h-4 text-success" />
+                  ) : deltaPct > 0 ? (
+                    <TrendingUp className="w-4 h-4 text-danger" />
+                  ) : null
+                )}
               </div>
-              <p className="text-2xl font-bold text-foreground">R$ 450,00</p>
-              <p className="text-xs text-success font-medium mt-1">↓ 12% vs. mês anterior</p>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(currentTotal)}</p>
+              {deltaPct != null && (
+                <p
+                  className={`text-xs font-medium mt-1 ${
+                    deltaPct < 0 ? "text-success" : deltaPct > 0 ? "text-danger" : "text-muted-foreground"
+                  }`}
+                >
+                  {deltaPct < 0 ? "↓" : deltaPct > 0 ? "↑" : ""} {Math.abs(deltaPct)}% vs. mês anterior
+                </p>
+              )}
 
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <div className="bg-secondary rounded-xl p-3 flex items-center gap-2.5">
@@ -110,28 +179,36 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Manutenção</p>
-                    <p className="text-sm font-bold text-foreground">R$ 280</p>
+                    <p className="text-sm font-bold text-foreground">{formatCurrency(currentTotal)}</p>
                   </div>
                 </div>
-                <div className="bg-secondary rounded-xl p-3 flex items-center gap-2.5">
+                <div className="bg-secondary rounded-xl p-3 flex items-center gap-2.5 opacity-50">
                   <div className="w-8 h-8 rounded-lg bg-warning/15 flex items-center justify-center">
-                    <Fuel className="w-4 h-4 text-warning" />
+                    <TrendingUp className="w-4 h-4 text-warning" />
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Combustível</p>
-                    <p className="text-sm font-bold text-foreground">R$ 170</p>
+                    <p className="text-[10px] font-semibold text-muted-foreground">Em breve</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-end gap-1.5 mt-4 h-12">
-                {[40, 65, 30, 80, 55, 70, 45].map((h, i) => (
-                  <div key={i} className="flex-1 rounded-md bg-primary/15 transition-all hover:bg-primary/30" style={{ height: `${h}%` }} />
-                ))}
+                {monthly.map((m) => {
+                  const h = Math.max(8, (m.total / maxMonth) * 100);
+                  return (
+                    <div
+                      key={m.monthKey}
+                      className="flex-1 rounded-md bg-primary/15 transition-all hover:bg-primary/30"
+                      style={{ height: `${h}%` }}
+                      title={`${m.monthLabel}: ${formatCurrency(m.total)}`}
+                    />
+                  );
+                })}
               </div>
               <div className="flex justify-between mt-1.5">
-                <span className="text-[9px] text-muted-foreground">Jan</span>
-                <span className="text-[9px] text-muted-foreground">Jul</span>
+                <span className="text-[9px] text-muted-foreground">{monthly[0]?.monthLabel}</span>
+                <span className="text-[9px] text-muted-foreground">{monthly[monthly.length - 1]?.monthLabel}</span>
               </div>
             </div>
 
