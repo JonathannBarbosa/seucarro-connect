@@ -57,6 +57,17 @@ Segredos ficam em três lugares, cada um com seu dono:
 
 **Nunca** coloque a `SERVICE_ROLE_KEY` ou a `ANTHROPIC_API_KEY` no Vercel — elas não precisam e não devem estar expostas ao runtime do Next.js.
 
+## Próximas camadas — CNH e CRLV-e
+
+Quando o app passar a armazenar documentos sensíveis (habilitação, CRLV-e, CPF, RENAVAM), aplicar **antes** do primeiro deploy dessa funcionalidade:
+
+1. **Criptografia em rest** — usar `pgcrypto` (`pgp_sym_encrypt`) para CPF, número da CNH e RENAVAM. Chave vive no Supabase Vault, nunca em `.env`.
+2. **Audit log imutável** — tabela `audit.document_access` populada por trigger em `select`/`update` das tabelas sensíveis, registrando `user_id`, `acessou_user_id`, `documento`, `operação`, `ip`, `timestamp`. Opcionalmente replicar para storage append-only.
+3. **Rate limit por usuário** nas Edge Functions que tocam documentos — bloquear acima de N requests/hora via tabela `rate_limits` ou Upstash Redis.
+4. **Upload direto via signed URL** — cliente obtém URL assinada e envia arquivo direto para o Storage. A Edge Function recebe somente o path, nunca o binário. Reduz superfície de ataque e custo.
+
+Esses controles são **aditivos** às 3 camadas já existentes e não substituem RLS/secretlint/CI.
+
 ## Reporte de vulnerabilidades
 
 Encontrou algo? Abra uma issue privada ou escreva direto ao mantenedor. Não divulgue publicamente antes da correção.
