@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚗 SeuCarro Connect
+#  SeuCarro Connect
 
 **A manutenção do seu carro, no bolso.**
 
@@ -20,15 +20,15 @@ Registre serviços, receba alertas preventivos e entenda seus gastos — sem pla
 
 ---
 
-## ✨ O que ele faz
+##  O que ele faz
 
-- **📋 Histórico completo** — cada troca de óleo, freio, pneu, fica registrada com custo e km
-- **🔔 Alertas automáticos** — a cada serviço cadastrado, o próximo já entra no radar (óleo a cada 10 mil km, freios a cada 20 mil, etc.)
-- **📸 Leitura por IA** — tira foto da nota da oficina e o Claude extrai os dados pra você
-- **📊 Analytics pessoais** — gasto do mês, comparativo, tendências
-- **📄 Relatório em PDF** — histórico completo do veículo, pronto para exportar na hora da venda
+- ** Histórico completo** — cada troca de óleo, freio, pneu, fica registrada com custo e km
+- ** Alertas automáticos** — a cada serviço cadastrado, o próximo já entra no radar (óleo a cada 10 mil km, freios a cada 20 mil, etc.)
+- ** Leitura por IA** — tira foto da nota da oficina e o Claude extrai os dados pra você
+- ** Analytics pessoais** — gasto do mês, comparativo, tendências
+- ** Relatório em PDF** — histórico completo do veículo, pronto para exportar na hora da venda
 
-## 🧰 Stack
+##  Stack
 
 | Camada | Tecnologia |
 |---|---|
@@ -39,7 +39,7 @@ Registre serviços, receba alertas preventivos e entenda seus gastos — sem pla
 | IA | Claude Haiku 4.5 via Anthropic SDK |
 | Deploy | Vercel (web) + Supabase (infra) |
 
-## 🚀 Rodando local
+## Rodando local
 
 ```bash
 npm install
@@ -54,7 +54,7 @@ npm run security:all       # secretlint + auditoria do bundle
 npm run security:rls       # testes de isolamento (requer .env.test)
 ```
 
-## 🗺️ Roadmap
+##  Roadmap
 
 - [x] Gestão de manutenções + alertas automáticos
 - [x] OCR de notas por IA
@@ -64,7 +64,7 @@ npm run security:rls       # testes de isolamento (requer .env.test)
 - [ ] Notificações push via WhatsApp
 - [ ] **Migração para React Native** (publicar na App Store e Play Store)
 
-## 🔒 Segurança
+##  Segurança
 
 Projeto tratado com prioridade máxima em privacidade — futuramente armazenará CNH e CRLV-e. Camadas ativas:
 
@@ -75,10 +75,10 @@ Projeto tratado com prioridade máxima em privacidade — futuramente armazenar�
 
 Detalhes em [SECURITY.md](./SECURITY.md).
 
-## 📝 Licença
+##  Licença
 
 Código proprietário. Todos os direitos reservados a [@JonathannBarbosa](https://github.com/JonathannBarbosa).
 
 <div align="center">
-<sub>🛠️ Construído por desenvolvedores que também esqueciam de trocar o óleo.</sub>
+<sub> Construído por desenvolvedores que também esqueciam de trocar o óleo.</sub>
 </div>
