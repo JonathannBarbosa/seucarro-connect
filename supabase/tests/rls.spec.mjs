@@ -30,7 +30,7 @@ const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 function req(name) {
   const v = process.env[name];
   if (!v) {
-    console.error(`❌ Variável ${name} não definida. Veja o cabeçalho deste arquivo.`);
+    console.error(`[ERRO]Variável ${name} não definida. Veja o cabeçalho deste arquivo.`);
     process.exit(2);
   }
   return v;
@@ -42,7 +42,7 @@ const B_EMAIL = req("TEST_USER_B_EMAIL");
 const B_PASS = req("TEST_USER_B_PASSWORD");
 
 if (!SUPABASE_URL || !SUPABASE_ANON) {
-  console.error("❌ NEXT_PUBLIC_SUPABASE_URL/ANON_KEY não definidas.");
+  console.error("[ERRO]NEXT_PUBLIC_SUPABASE_URL/ANON_KEY não definidas.");
   process.exit(2);
 }
 
@@ -60,10 +60,10 @@ let failed = 0;
 
 function assert(label, condition, extra = "") {
   if (condition) {
-    console.log(`  ✅ ${label}`);
+    console.log(`  [OK]${label}`);
     passed++;
   } else {
-    console.error(`  ❌ ${label}${extra ? ` → ${extra}` : ""}`);
+    console.error(`  [ERRO]${label}${extra ? ` → ${extra}` : ""}`);
     failed++;
   }
 }
@@ -129,7 +129,7 @@ async function main() {
       updErr !== null || (updData?.length ?? 0) === 0,
     );
   } else {
-    console.log("  ⚠️  A não tem alertas; pulei o teste de update.");
+    console.log("  [SKIP] A não tem alertas; pulei o teste de update.");
   }
 
   console.log(`\n${passed} passaram, ${failed} falharam`);
