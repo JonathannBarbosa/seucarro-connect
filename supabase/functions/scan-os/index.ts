@@ -66,6 +66,43 @@ Deno.serve(async (req) => {
 
     if (!user) return json({ error: "Não autenticado" }, 401);
 
+    const { data: subscription } = await authClient
+      .from("subscriptions")
+      .select("plan, status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const plan = subscription?.plan ?? "free";
+    const isActive = (subscription?.status ?? "active") === "active";
+
+    if (plan === "free" || !isActive) {
+      const firstOfMonth = new Date();
+      firstOfMonth.setUTCDate(1);
+      firstOfMonth.setUTCHours(0, 0, 0, 0);
+
+      const { count, error: countError } = await authClient
+        .from("maintenances")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("source", "ocr")
+        .gte("created_at", firstOfMonth.toISOString());
+
+      if (countError) {
+        return json({ error: "Não foi possível validar sua cota" }, 500);
+      }
+
+      const FREE_MONTHLY_LIMIT = 3;
+      if ((count ?? 0) >= FREE_MONTHLY_LIMIT) {
+        return json(
+          {
+            error: `Você atingiu o limite mensal de ${FREE_MONTHLY_LIMIT} leituras automáticas do plano Free. Faça upgrade para Pro ou registre manualmente.`,
+            code: "quota_exceeded",
+          },
+          402,
+        );
+      }
+    }
+
     const body = await req.json();
     const storagePath = body?.storagePath as string | undefined;
 

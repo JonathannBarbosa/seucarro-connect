@@ -59,7 +59,7 @@ export default function AddMaintenancePage() {
   const [notes, setNotes] = useState("");
   const [serviceDate, setServiceDate] = useState(todayIso());
   const [workshop, setWorkshop] = useState("");
-  const [osImageUrl, setOsImageUrl] = useState<string | null>(null);
+  const [osImagePath, setOsImagePath] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<ScanOSResult | null>(null);
   const [error, setError] = useState("");
 
@@ -74,7 +74,7 @@ export default function AddMaintenancePage() {
     setNotes("");
     setServiceDate(todayIso());
     setWorkshop("");
-    setOsImageUrl(null);
+    setOsImagePath(null);
     setScanResult(null);
   }
 
@@ -108,7 +108,7 @@ export default function AddMaintenancePage() {
       setServiceDate(result.service_date ?? todayIso());
       setWorkshop(result.workshop ?? "");
       setNotes(result.description ?? "");
-      setOsImageUrl(result.os_image_url);
+      setOsImagePath(result.os_image_path);
       setStep("manual");
       toast.success("Dados extraídos! Revise antes de salvar.");
     } catch (err) {
@@ -148,7 +148,7 @@ export default function AddMaintenancePage() {
         description: parsed.data.description ?? null,
         service_date: parsed.data.service_date,
         workshop: workshop || null,
-        os_image_url: osImageUrl,
+        os_image_path: osImagePath,
         parts: scanResult?.parts ?? [],
         source: fromOCR ? "ocr" : "manual",
       });

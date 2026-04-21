@@ -4,6 +4,22 @@
 -- Objetivo: adicionar o núcleo do produto — histórico de
 -- manutenções, alertas automáticos e controle de planos
 -- ============================================================
+-- Migration idempotente: pode ser re-executada sem erros.
+-- ============================================================
+
+-- ============================================================
+-- 0) FUNCTION AUXILIAR: update_updated_at
+-- Garante que exista (pode já vir de migration anterior).
+-- ============================================================
+create or replace function public.update_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 
 -- ============================================================
 -- 1) MAINTENANCES (manutenções realizadas)
@@ -22,7 +38,7 @@ create table if not exists public.maintenances (
   service_date date not null default current_date,
   workshop text,
   parts jsonb default '[]'::jsonb,
-  os_image_url text,
+  os_image_path text,
   source text not null default 'manual' check (source in ('manual', 'ocr')),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -35,16 +51,23 @@ create index if not exists idx_maintenances_user_month on public.maintenances(us
 
 alter table public.maintenances enable row level security;
 
+drop policy if exists "Ver próprias manutenções" on public.maintenances;
 create policy "Ver próprias manutenções" on public.maintenances
   for select using (auth.uid() = user_id);
+
+drop policy if exists "Inserir manutenções" on public.maintenances;
 create policy "Inserir manutenções" on public.maintenances
   for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Atualizar próprias manutenções" on public.maintenances;
 create policy "Atualizar próprias manutenções" on public.maintenances
   for update using (auth.uid() = user_id);
+
+drop policy if exists "Deletar próprias manutenções" on public.maintenances;
 create policy "Deletar próprias manutenções" on public.maintenances
   for delete using (auth.uid() = user_id);
 
--- Trigger updated_at
+drop trigger if exists maintenances_updated_at on public.maintenances;
 create trigger maintenances_updated_at
   before update on public.maintenances
   for each row execute function public.update_updated_at();
@@ -73,12 +96,19 @@ create index if not exists idx_alerts_pending on public.alerts(user_id, is_resol
 
 alter table public.alerts enable row level security;
 
+drop policy if exists "Ver próprios alertas" on public.alerts;
 create policy "Ver próprios alertas" on public.alerts
   for select using (auth.uid() = user_id);
+
+drop policy if exists "Inserir alertas" on public.alerts;
 create policy "Inserir alertas" on public.alerts
   for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Atualizar próprios alertas" on public.alerts;
 create policy "Atualizar próprios alertas" on public.alerts
   for update using (auth.uid() = user_id);
+
+drop policy if exists "Deletar próprios alertas" on public.alerts;
 create policy "Deletar próprios alertas" on public.alerts
   for delete using (auth.uid() = user_id);
 
@@ -101,14 +131,19 @@ create index if not exists idx_subscriptions_user on public.subscriptions(user_i
 
 alter table public.subscriptions enable row level security;
 
+drop policy if exists "Ver próprio plano" on public.subscriptions;
 create policy "Ver próprio plano" on public.subscriptions
   for select using (auth.uid() = user_id);
+
+drop policy if exists "Inserir próprio plano" on public.subscriptions;
 create policy "Inserir próprio plano" on public.subscriptions
   for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Atualizar próprio plano" on public.subscriptions;
 create policy "Atualizar próprio plano" on public.subscriptions
   for update using (auth.uid() = user_id);
 
--- Trigger updated_at
+drop trigger if exists subscriptions_updated_at on public.subscriptions;
 create trigger subscriptions_updated_at
   before update on public.subscriptions
   for each row execute function public.update_updated_at();
@@ -129,6 +164,7 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created_subscription on auth.users;
 create trigger on_auth_user_created_subscription
   after insert on auth.users
   for each row execute function public.handle_new_user_subscription();
@@ -199,6 +235,7 @@ begin
 end;
 $$;
 
+drop trigger if exists on_maintenance_created_alert on public.maintenances;
 create trigger on_maintenance_created_alert
   after insert on public.maintenances
   for each row execute function public.generate_maintenance_alerts();
@@ -212,11 +249,15 @@ values (
   'os-uploads',
   false,
   5242880, -- 5MB
-  array['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  array['image/jpeg', 'image/png', 'image/webp']
 )
-on conflict (id) do nothing;
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- Policies: usuário só acessa arquivos na sua própria pasta {user_id}/
+drop policy if exists "User upload own OS" on storage.objects;
 create policy "User upload own OS" on storage.objects
   for insert to authenticated
   with check (
@@ -224,6 +265,7 @@ create policy "User upload own OS" on storage.objects
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+drop policy if exists "User read own OS" on storage.objects;
 create policy "User read own OS" on storage.objects
   for select to authenticated
   using (
@@ -231,6 +273,7 @@ create policy "User read own OS" on storage.objects
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+drop policy if exists "User delete own OS" on storage.objects;
 create policy "User delete own OS" on storage.objects
   for delete to authenticated
   using (

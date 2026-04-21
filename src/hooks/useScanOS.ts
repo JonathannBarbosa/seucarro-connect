@@ -14,8 +14,7 @@ export interface ScanOSResult {
   workshop: string | null;
   parts: MaintenancePart[];
   confidence: number;
-  os_image_url: string;
-  storage_path: string;
+  os_image_path: string;
 }
 
 function getExtension(file: File): string {
@@ -52,29 +51,36 @@ export function useScanOS() {
 
       if (uploadError) throw new Error(`Falha no upload: ${uploadError.message}`);
 
-      const { data: fn, error: fnError } = await supabase.functions.invoke("scan-os", {
-        body: { storagePath },
-      });
+      try {
+        const { data: fn, error: fnError } = await supabase.functions.invoke("scan-os", {
+          body: { storagePath },
+        });
 
-      if (fnError) {
-        throw new Error(fnError.message || "Não conseguimos ler a nota. Tente registrar manualmente.");
+        if (fnError) {
+          throw new Error(fnError.message || "Não conseguimos ler a nota. Tente registrar manualmente.");
+        }
+
+        if (fn && typeof fn === "object" && "error" in fn) {
+          throw new Error(String(fn.error));
+        }
+
+        const parsed = fn as Omit<ScanOSResult, "os_image_path">;
+
+        return {
+          ...parsed,
+          os_image_path: storagePath,
+        };
+      } catch (err) {
+        await supabase.storage.from("os-uploads").remove([storagePath]).catch(() => undefined);
+        throw err;
       }
-
-      if (fn && typeof fn === "object" && "error" in fn) {
-        throw new Error(String(fn.error));
-      }
-
-      const parsed = fn as Omit<ScanOSResult, "os_image_url" | "storage_path">;
-
-      const { data: signed } = await supabase.storage
-        .from("os-uploads")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-
-      return {
-        ...parsed,
-        os_image_url: signed?.signedUrl ?? "",
-        storage_path: storagePath,
-      };
     },
   });
+}
+
+export async function getOsImageSignedUrl(path: string, expiresInSeconds = 60 * 10): Promise<string | null> {
+  const { data } = await supabase.storage
+    .from("os-uploads")
+    .createSignedUrl(path, expiresInSeconds);
+  return data?.signedUrl ?? null;
 }

@@ -43,7 +43,7 @@ export interface CreateMaintenanceInput {
   service_date: string;
   workshop?: string | null;
   parts?: MaintenancePart[];
-  os_image_url?: string | null;
+  os_image_path?: string | null;
   source?: MaintenanceSource;
 }
 
