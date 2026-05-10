@@ -66,6 +66,14 @@ Deno.serve(async (req) => {
 
     if (!user) return json({ error: "Não autenticado" }, 401);
 
+    const { data: profile } = await authClient
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin = profile?.is_admin === true;
+
     const { data: subscription } = await authClient
       .from("subscriptions")
       .select("plan, status")
@@ -75,7 +83,7 @@ Deno.serve(async (req) => {
     const plan = subscription?.plan ?? "free";
     const isActive = (subscription?.status ?? "active") === "active";
 
-    if (plan === "free" || !isActive) {
+    if (!isAdmin && (plan === "free" || !isActive)) {
       const firstOfMonth = new Date();
       firstOfMonth.setUTCDate(1);
       firstOfMonth.setUTCHours(0, 0, 0, 0);

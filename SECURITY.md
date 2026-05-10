@@ -39,10 +39,10 @@ Pré-requisito: dois usuários de teste cadastrados no Supabase Auth, com creden
 
 ## Convenções obrigatórias
 
-- ❌ **Nunca** use `SUPABASE_SERVICE_ROLE_KEY` no frontend, nem em Route Handlers que sirvam resposta ao cliente sem revalidar `auth.uid()`.
-- ✅ Lógica privilegiada (que ignora RLS) vive **apenas** em Edge Functions ou Route Handlers com `import "server-only"`.
-- ✅ Variáveis públicas do frontend devem começar com `NEXT_PUBLIC_`. Tudo sem esse prefixo é tratado como secret.
-- ✅ Ao adicionar nova tabela com dados de usuário: habilitar RLS + policies + teste em `rls.spec.mjs` na mesma PR.
+- **Proibido:** usar `SUPABASE_SERVICE_ROLE_KEY` no frontend, ou em Route Handlers que sirvam resposta ao cliente sem revalidar `auth.uid()`.
+- **Obrigatório:** lógica privilegiada (que ignora RLS) vive **apenas** em Edge Functions ou Route Handlers com `import "server-only"`.
+- **Obrigatório:** variáveis públicas do frontend devem começar com `NEXT_PUBLIC_`. Tudo sem esse prefixo é tratado como secret.
+- **Obrigatório:** ao adicionar nova tabela com dados de usuário, habilitar RLS + policies + teste em `rls.spec.mjs` na mesma PR.
 
 ## Gestão de segredos
 
@@ -56,6 +56,17 @@ Segredos ficam em três lugares, cada um com seu dono:
 | Credenciais `.env.test` | Máquina local dev | Testes RLS |
 
 **Nunca** coloque a `SERVICE_ROLE_KEY` ou a `ANTHROPIC_API_KEY` no Vercel — elas não precisam e não devem estar expostas ao runtime do Next.js.
+
+## Próximas camadas — CNH e CRLV-e
+
+Quando o app passar a armazenar documentos sensíveis (habilitação, CRLV-e, CPF, RENAVAM), aplicar **antes** do primeiro deploy dessa funcionalidade:
+
+1. **Criptografia em rest** — usar `pgcrypto` (`pgp_sym_encrypt`) para CPF, número da CNH e RENAVAM. Chave vive no Supabase Vault, nunca em `.env`.
+2. **Audit log imutável** — tabela `audit.document_access` populada por trigger em `select`/`update` das tabelas sensíveis, registrando `user_id`, `acessou_user_id`, `documento`, `operação`, `ip`, `timestamp`. Opcionalmente replicar para storage append-only.
+3. **Rate limit por usuário** nas Edge Functions que tocam documentos — bloquear acima de N requests/hora via tabela `rate_limits` ou Upstash Redis.
+4. **Upload direto via signed URL** — cliente obtém URL assinada e envia arquivo direto para o Storage. A Edge Function recebe somente o path, nunca o binário. Reduz superfície de ataque e custo.
+
+Esses controles são **aditivos** às 3 camadas já existentes e não substituem RLS/secretlint/CI.
 
 ## Reporte de vulnerabilidades
 

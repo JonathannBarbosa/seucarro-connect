@@ -117,7 +117,7 @@ for (const file of walk(SRC)) {
 }
 
 if (violations.length > 0) {
-  console.error("\n❌ Falhas de segurança no client bundle:\n");
+  console.error("\n[ERRO] Falhas de segurança no client bundle:\n");
   for (const v of violations) console.error(`  - ${v}`);
   console.error(
     "\nCorrija movendo o código para server actions / route handlers / middleware, ou adicione `import 'server-only'` no topo do arquivo.",
@@ -125,4 +125,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log("✅ Client bundle audit OK");
+console.log("[OK] Client bundle audit");
