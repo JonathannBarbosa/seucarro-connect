@@ -69,10 +69,15 @@ export function useCreateMaintenance() {
       if (error) throw error;
       return data as Maintenance;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["maintenances", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["alerts", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["expenses", user?.id] });
+      supabase.functions.invoke("generate-alerts", {
+        body: { vehicleId: data.vehicle_id },
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["alerts", user?.id] });
+      }).catch(() => undefined);
     },
   });
 }

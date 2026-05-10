@@ -4,13 +4,17 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Battery, Calendar, CheckCircle, CircleDot, Disc, Download,
-  Droplets, Gauge, LifeBuoy, Settings, Shield, SlidersHorizontal,
-  TrendingUp, Wind, Wrench,
+  Droplets, Gauge, LifeBuoy, Lightbulb, Loader2, Lock, Settings, Shield,
+  SlidersHorizontal, TrendingUp, Wind, Wrench,
 } from "lucide-react";
+import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
+import { PlanGate, UpgradeButton } from "@/components/PlanGate";
+import { usePlanFeatures } from "@/hooks/usePlanFeatures";
 import { usePrimaryVehicle } from "@/hooks/useVehicles";
 import { useMaintenances } from "@/hooks/useMaintenances";
 import { useExpensesByCategory, useTotalExpenses } from "@/hooks/useExpenses";
+import { useReliabilityScore, type ReliabilityScoreResult } from "@/hooks/useReliabilityScore";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { calculateVehicleScore } from "@/lib/vehicleScore";
 import { SERVICE_TYPE_LABELS, type ServiceType } from "@/types/database";
@@ -33,6 +37,13 @@ export default function VehicleReportPage() {
   const router = useRouter();
   const reportRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
+
+  const { can } = usePlanFeatures();
+  const canExportPDF = can("pdf_export");
+  const canSeeScore = can("vehicle_score");
+
+  const [scoreAI, setScoreAI] = useState<ReliabilityScoreResult | null>(null);
+  const generateScoreAI = useReliabilityScore();
 
   const { data: vehicle } = usePrimaryVehicle();
   const { data: maintenances } = useMaintenances({ vehicleId: vehicle?.id });
@@ -110,13 +121,19 @@ export default function VehicleReportPage() {
           <ArrowLeft className="w-4.5 h-4.5 text-foreground" />
         </button>
         <h1 className="text-base font-bold text-foreground">Relatório do Veículo</h1>
-        <button
-          onClick={handleExportPDF}
-          disabled={exporting}
-          className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
-        >
-          <Download className="w-4.5 h-4.5 text-primary-foreground" />
-        </button>
+        {canExportPDF ? (
+          <button
+            onClick={handleExportPDF}
+            disabled={exporting}
+            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
+          >
+            <Download className="w-4.5 h-4.5 text-primary-foreground" />
+          </button>
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+            <Lock className="w-4 h-4 text-muted-foreground" />
+          </div>
+        )}
       </div>
 
       <div ref={reportRef} className="px-5 py-6 pb-28 space-y-5 max-w-lg mx-auto">
@@ -157,43 +174,91 @@ export default function VehicleReportPage() {
           </div>
         </div>
 
-        <div className="bg-card rounded-2xl p-5 card-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-bold text-foreground text-sm">Score de Confiabilidade</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">{score.label} · histórico dos últimos 12 meses</p>
+        <PlanGate feature="vehicle_score" locked={!canSeeScore} mode="blur">
+          <div className="bg-card rounded-2xl p-5 card-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-foreground text-sm">Score de Confiabilidade</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{score.label} · histórico dos últimos 12 meses</p>
+              </div>
+              <div className="text-right">
+                <span className="text-3xl font-extrabold text-accent">{score.total}</span>
+                <span className="text-sm text-muted-foreground font-medium">/100</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-3xl font-extrabold text-accent">{score.total}</span>
-              <span className="text-sm text-muted-foreground font-medium">/100</span>
+            <div className="h-3 bg-secondary rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent/80 to-accent transition-all"
+                style={{ width: `${score.total}%` }}
+              />
             </div>
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] text-muted-foreground">Baixo</span>
+              <span className="text-[10px] text-muted-foreground">Médio</span>
+              <span className="text-[10px] text-muted-foreground">Excelente</span>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="bg-accent/5 rounded-lg px-2 py-2">
+                <p className="text-xs font-bold text-accent">{score.oilChangeRegularity}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">Trocas de óleo</p>
+              </div>
+              <div className="bg-accent/5 rounded-lg px-2 py-2">
+                <p className="text-xs font-bold text-accent">{score.reviewFrequency}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">Revisões</p>
+              </div>
+              <div className="bg-accent/5 rounded-lg px-2 py-2">
+                <p className="text-xs font-bold text-accent">{score.maintenanceCoverage}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">Cobertura</p>
+              </div>
+            </div>
+
+            {scoreAI ? (
+              <div className="mt-4 space-y-3 border-t border-border pt-4">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-accent" />
+                  <span className="text-xs font-semibold text-accent">Análise IA</span>
+                </div>
+                <p className="text-sm text-foreground leading-relaxed">{scoreAI.explanation}</p>
+                {scoreAI.suggestions.length > 0 && (
+                  <ul className="space-y-1.5 mt-2">
+                    {scoreAI.suggestions.map((s, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <span className="w-4 h-4 rounded-full bg-accent/15 text-accent text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                          {i + 1}
+                        </span>
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={async () => {
+                  if (!vehicle) return;
+                  try {
+                    const result = await generateScoreAI.mutateAsync({
+                      vehicleId: vehicle.id,
+                      currentScore: score.total,
+                    });
+                    setScoreAI(result);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Erro ao gerar análise");
+                  }
+                }}
+                disabled={generateScoreAI.isPending}
+                className="mt-4 w-full flex items-center justify-center gap-2 text-xs font-semibold text-accent bg-accent/10 py-2.5 rounded-xl active:scale-[0.98] transition-transform disabled:opacity-50"
+              >
+                {generateScoreAI.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Lightbulb className="w-3.5 h-3.5" />
+                )}
+                {generateScoreAI.isPending ? "Analisando..." : "Explicar com IA"}
+              </button>
+            )}
           </div>
-          <div className="h-3 bg-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-accent/80 to-accent transition-all"
-              style={{ width: `${score.total}%` }}
-            />
-          </div>
-          <div className="flex justify-between mt-2">
-            <span className="text-[10px] text-muted-foreground">Baixo</span>
-            <span className="text-[10px] text-muted-foreground">Médio</span>
-            <span className="text-[10px] text-muted-foreground">Excelente</span>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            <div className="bg-accent/5 rounded-lg px-2 py-2">
-              <p className="text-xs font-bold text-accent">{score.oilChangeRegularity}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Trocas de óleo</p>
-            </div>
-            <div className="bg-accent/5 rounded-lg px-2 py-2">
-              <p className="text-xs font-bold text-accent">{score.reviewFrequency}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Revisões</p>
-            </div>
-            <div className="bg-accent/5 rounded-lg px-2 py-2">
-              <p className="text-xs font-bold text-accent">{score.maintenanceCoverage}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Cobertura</p>
-            </div>
-          </div>
-        </div>
+        </PlanGate>
 
         {topCategories.length > 0 && (
           <div className="bg-card rounded-2xl p-5 card-shadow">
@@ -266,14 +331,18 @@ export default function VehicleReportPage() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border p-4 max-w-lg mx-auto">
-        <button
-          onClick={handleExportPDF}
-          disabled={exporting}
-          className="w-full bg-primary text-primary-foreground rounded-2xl py-4 font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
-        >
-          <Download className="w-5 h-5" />
-          {exporting ? "Gerando PDF..." : "Exportar Relatório em PDF"}
-        </button>
+        {canExportPDF ? (
+          <button
+            onClick={handleExportPDF}
+            disabled={exporting}
+            className="w-full bg-primary text-primary-foreground rounded-2xl py-4 font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
+          >
+            <Download className="w-5 h-5" />
+            {exporting ? "Gerando PDF..." : "Exportar Relatório em PDF"}
+          </button>
+        ) : (
+          <UpgradeButton feature="pdf_export" label="Desbloquear exportação PDF" fullWidth />
+        )}
       </div>
     </div>
   );

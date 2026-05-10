@@ -1,18 +1,29 @@
 "use client";
 
-import { ArrowLeft, DollarSign, Plus, TrendingDown, TrendingUp, Wrench } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, DollarSign, Lightbulb, Loader2, Plus, TrendingDown, TrendingUp, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
+import { PlanGate } from "@/components/PlanGate";
+import { usePlanFeatures } from "@/hooks/usePlanFeatures";
 import { useExpensesByCategory, useMonthlyExpenses, useTotalExpenses } from "@/hooks/useExpenses";
+import { useExpenseInsights, type ExpenseInsightsResult } from "@/hooks/useExpenseInsights";
 import { usePrimaryVehicle } from "@/hooks/useVehicles";
 import { formatCurrency } from "@/lib/format";
 
 export default function AnalyticsPage() {
   const router = useRouter();
+  const { can } = usePlanFeatures();
+  const canSeeAdvanced = can("analytics_advanced");
+
   const { data: vehicle } = usePrimaryVehicle();
   const { data: monthly } = useMonthlyExpenses({ vehicleId: vehicle?.id, months: 6 });
   const { data: byCategory } = useExpensesByCategory(vehicle?.id);
   const { data: totals, isLoading } = useTotalExpenses(vehicle?.id);
+
+  const [insights, setInsights] = useState<ExpenseInsightsResult | null>(null);
+  const generateInsights = useExpenseInsights();
 
   const maxVal = Math.max(...monthly.map((m) => m.total), 1);
   const currentTotal = monthly[monthly.length - 1]?.total ?? 0;
@@ -109,54 +120,113 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {byCategory.length > 0 && (
-              <div
-                className="bg-card rounded-2xl p-5 card-shadow mb-6 animate-fade-in-up"
-                style={{ animationDelay: "0.15s" }}
-              >
-                <p className="text-sm font-semibold text-foreground mb-4">Por categoria</p>
-                <div className="space-y-3">
-                  {byCategory.slice(0, 5).map((cat) => {
-                    const pct = totals.total > 0 ? (cat.total / totals.total) * 100 : 0;
-                    return (
-                      <div key={cat.serviceType}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-foreground">{cat.label}</span>
-                          <span className="text-sm font-semibold text-foreground">
-                            {formatCurrency(cat.total)}
-                          </span>
+            <PlanGate feature="analytics_advanced" locked={!canSeeAdvanced} mode="blur">
+              <div>
+                {byCategory.length > 0 && (
+                  <div
+                    className="bg-card rounded-2xl p-5 card-shadow mb-6 animate-fade-in-up"
+                    style={{ animationDelay: "0.15s" }}
+                  >
+                    <p className="text-sm font-semibold text-foreground mb-4">Por categoria</p>
+                    <div className="space-y-3">
+                      {byCategory.slice(0, 5).map((cat) => {
+                        const pct = totals.total > 0 ? (cat.total / totals.total) * 100 : 0;
+                        return (
+                          <div key={cat.serviceType}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm text-foreground">{cat.label}</span>
+                              <span className="text-sm font-semibold text-foreground">
+                                {formatCurrency(cat.total)}
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-foreground">Insights</h2>
+                    {vehicle && !insights && (
+                      <button
+                        onClick={async () => {
+                          if (!vehicle) return;
+                          try {
+                            const result = await generateInsights.mutateAsync({ vehicleId: vehicle.id });
+                            setInsights(result);
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Erro ao gerar insights");
+                          }
+                        }}
+                        disabled={generateInsights.isPending}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-full active:scale-95 transition-transform disabled:opacity-50"
+                      >
+                        {generateInsights.isPending ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Lightbulb className="w-3 h-3" />
+                        )}
+                        {generateInsights.isPending ? "Analisando..." : "Gerar com IA"}
+                      </button>
+                    )}
+                  </div>
+
+                  {currentTotal > avg ? (
+                    <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 flex items-start gap-3">
+                      <TrendingUp className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-foreground">
+                        Você gastou <strong>{formatCurrency(currentTotal)}</strong> este mês, acima da sua média ({formatCurrency(avg)}).
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-success/10 border border-success/20 rounded-xl p-4 flex items-start gap-3">
+                      <TrendingDown className="w-5 h-5 text-success mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-foreground">
+                        Você está gastando <strong>menos</strong> este mês comparado à média de {formatCurrency(avg)}.
+                      </p>
+                    </div>
+                  )}
+
+                  {insights && (
+                    <div className="space-y-3 animate-fade-in-up">
+                      <div className="bg-primary/5 border border-primary/15 rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Lightbulb className="w-4 h-4 text-primary" />
+                          <span className="text-xs font-semibold text-primary">Análise IA</span>
                         </div>
-                        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                        <p className="text-sm text-foreground leading-relaxed">{insights.summary}</p>
+                        {insights.anomaly && (
+                          <p className="text-xs text-warning mt-2 font-medium">{insights.anomaly}</p>
+                        )}
                       </div>
-                    );
-                  })}
+                      {insights.recommendations.length > 0 && (
+                        <div className="bg-card rounded-xl p-4 card-shadow border border-border">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Recomendações</p>
+                          <ul className="space-y-2">
+                            {insights.recommendations.map((rec, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-foreground">
+                                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  {i + 1}
+                                </span>
+                                {rec}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-
-            <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
-              <h2 className="text-sm font-semibold text-foreground">Insights</h2>
-              {currentTotal > avg ? (
-                <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 flex items-start gap-3">
-                  <TrendingUp className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-foreground">
-                    Você gastou <strong>{formatCurrency(currentTotal)}</strong> este mês, acima da sua média ({formatCurrency(avg)}).
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-success/10 border border-success/20 rounded-xl p-4 flex items-start gap-3">
-                  <TrendingDown className="w-5 h-5 text-success mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-foreground">
-                    Você está gastando <strong>menos</strong> este mês comparado à média de {formatCurrency(avg)}.
-                  </p>
-                </div>
-              )}
-            </div>
+            </PlanGate>
           </>
         )}
       </div>
